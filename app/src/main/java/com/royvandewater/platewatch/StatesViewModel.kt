@@ -29,6 +29,17 @@ class StatesViewModel(private val dataStore: DataStore<Preferences>): ViewModel(
         }
     }
 
+    fun resetStates() {
+        viewModelScope.launch {
+            dataStore.edit { settings ->
+                allStates.forEach { state ->
+                    val key = booleanPreferencesKey(state)
+                    settings[key] = false
+                }
+            }
+        }
+    }
+
     private fun getNonViewedStates(): Flow<List<String>> {
         Log.i(TAG, "getNonViewedState")
         val settings: Flow<ArrayList<String>> = dataStore.data.map { settings ->
