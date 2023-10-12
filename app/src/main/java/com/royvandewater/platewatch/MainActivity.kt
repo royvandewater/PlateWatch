@@ -135,7 +135,7 @@ fun Separator() {
         .padding(0.dp, 16.dp, 0.dp, 0.dp)
         .background(MaterialTheme.colorScheme.secondaryContainer)) {
         Column {
-            Text(text = "Seen", fontSize = 24.sp, color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.38f), modifier = Modifier.padding(8.dp))
+            Text(text = "Checked", fontSize = 24.sp, color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.38f), modifier = Modifier.padding(8.dp))
         }
     }
 }
