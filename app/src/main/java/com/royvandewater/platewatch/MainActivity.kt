@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -31,7 +32,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -42,7 +42,7 @@ import androidx.lifecycle.ViewModelProvider
 import com.royvandewater.platewatch.ui.theme.PlateWatchTheme
 import kotlinx.coroutines.runBlocking
 
-const val TAG: String = "MainActivity"
+//const val TAG: String = "MainActivity"
 val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "states")
 
 class MainActivity : ComponentActivity() {
@@ -56,10 +56,12 @@ class MainActivity : ComponentActivity() {
             StatesViewModelFactory(dataStore)
         )[StatesViewModel::class.java]
 
-        val statesList: MutableState<List<String>> = mutableStateOf(listOf())
+        val nonViewedStates: MutableState<List<String>> = mutableStateOf(listOf())
+        val viewedStates: MutableState<List<String>> = mutableStateOf(listOf())
 
-        viewModel.states.observe(this) {states ->
-            statesList.value = states
+        viewModel.statesUiModel.observe(this) { statesUiModel ->
+            nonViewedStates.value = statesUiModel.nonViewed
+            viewedStates.value = statesUiModel.viewed
         }
 
         setContent {
@@ -86,8 +88,10 @@ class MainActivity : ComponentActivity() {
                         modifier = Modifier.fillMaxSize(),
                         color = MaterialTheme.colorScheme.background
                     ) {
-                        StatesList(innerPadding, statesList, onSelectState = {state ->
+                        StatesList(innerPadding, nonViewedStates, viewedStates, onStateViewed = { state ->
                             viewModel.setStateViewed(state)
+                        }, onStateUnViewed = { state ->
+                            viewModel.setStateUnViewed(state)
                         })
                     }
                 }
@@ -97,16 +101,41 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun StatesList(innerPadding: PaddingValues, statesList: MutableState<List<String>>, onSelectState: (state: String) -> Unit) {
-    val states by rememberSaveable { statesList }
+fun StatesList(innerPadding: PaddingValues, nonViewedStatesList: MutableState<List<String>>, viewedStatesList: MutableState<List<String>>, onStateViewed: (state: String) -> Unit, onStateUnViewed: (state: String) -> Unit) {
+    val nonViewedStates by rememberSaveable { nonViewedStatesList }
+    val viewedStates by rememberSaveable { viewedStatesList }
 
     LazyColumn(Modifier.padding(innerPadding)) {
-        items(items = states) { state ->
+        items(items = nonViewedStates) { state ->
             StateRow(state = state, onClick = {
                 runBlocking {
-                    onSelectState(state)
+                    onStateViewed(state)
                 }
             })
+        }
+
+        item {
+            Separator()
+        }
+
+        items(items = viewedStates) { state ->
+            ViewedStateRow(state = state, onClick = {
+                runBlocking {
+                    onStateUnViewed(state)
+                }
+            })
+        }
+    }
+}
+
+@Composable
+fun Separator() {
+    Row(modifier = Modifier
+        .fillMaxWidth()
+        .padding(0.dp, 16.dp, 0.dp, 0.dp)
+        .background(MaterialTheme.colorScheme.secondaryContainer)) {
+        Column {
+            Text(text = "Seen", fontSize = 24.sp, color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.38f), modifier = Modifier.padding(8.dp))
         }
     }
 }
@@ -117,8 +146,20 @@ fun StateRow(state: String, onClick: () -> Unit) {
         .clickable(true, "Select", null, onClick = onClick)
         .fillMaxWidth()) {
         Column {
-            Divider(color = Color.Black)
+            Divider(color = MaterialTheme.colorScheme.onPrimaryContainer)
             Text(text = state, fontSize =24.sp, modifier = Modifier.padding(8.dp))
+        }
+    }
+}
+
+@Composable
+fun ViewedStateRow(state: String, onClick: () -> Unit) {
+    Row(modifier = Modifier
+        .clickable(true, "Select", null, onClick = onClick)
+        .fillMaxWidth()) {
+        Column {
+            Divider(color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.38f))
+            Text(text = state, fontSize =24.sp, color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.38f), modifier = Modifier.padding(8.dp))
         }
     }
 }
