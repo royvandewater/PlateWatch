@@ -15,3 +15,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "PlateWatch"
 include(":app")
+include(":platewatch")
