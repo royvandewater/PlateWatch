@@ -14,8 +14,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -32,7 +30,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.datastore.core.DataStore
@@ -58,30 +56,24 @@ class MainActivity : ComponentActivity() {
 
         val nonViewedStates: MutableState<List<String>> = mutableStateOf(listOf())
         val viewedStates: MutableState<List<String>> = mutableStateOf(listOf())
+        val hasUndo: MutableState<Boolean> = mutableStateOf(false)
 
         viewModel.statesUiModel.observe(this) { statesUiModel ->
             nonViewedStates.value = statesUiModel.nonViewed
             viewedStates.value = statesUiModel.viewed
+            hasUndo.value = statesUiModel.hasUndoHistory
         }
 
         setContent {
             PlateWatchTheme {
                 Scaffold(
-                    topBar = { TopAppBar(
-                        colors = topAppBarColors(
-                            containerColor = MaterialTheme.colorScheme.primaryContainer,
-                            titleContentColor = MaterialTheme.colorScheme.primary,
-                        ),
-                        title = { Text("Plate Watch") },
-                        actions = {
-                            IconButton(onClick = { viewModel.resetStates() }) {
-                                Icon(
-                                    imageVector = Icons.Filled.Refresh,
-                                    contentDescription = "Clear Viewed"
-                                )
-                            }
-                        }
-                    ) }
+                    topBar = {
+                        StatesTopBar(
+                            hasUndoState = hasUndo,
+                            onUndo  = { viewModel.undo() },
+                            onReset = { viewModel.resetStates() }
+                        )
+                    }
                 ) {innerPadding ->
                     // A surface container using the 'background' color from the theme
                     Surface(
@@ -98,6 +90,34 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun StatesTopBar(hasUndoState: MutableState<Boolean>, onUndo: () -> Unit, onReset: () -> Unit ) {
+    val hasUndo by rememberSaveable { hasUndoState }
+
+    TopAppBar(
+        colors = topAppBarColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer,
+            titleContentColor = MaterialTheme.colorScheme.primary,
+        ),
+        title = { Text("Plate Watch") },
+        actions = {
+            IconButton( onClick = { onUndo() }, enabled = hasUndo) {
+                Icon(
+                    painter = painterResource(id = R.drawable.baseline_undo_24),
+                    contentDescription = "Undo"
+                )
+            }
+            IconButton(onClick = { onReset() }) {
+                Icon(
+                    painter = painterResource(id = R.drawable.baseline_delete_sweep_24),
+                    contentDescription = "Clear Viewed"
+                )
+            }
+        }
+    )
 }
 
 @Composable
@@ -161,21 +181,5 @@ fun ViewedStateRow(state: String, onClick: () -> Unit) {
             Divider(color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.38f))
             Text(text = state, fontSize =24.sp, color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.38f), modifier = Modifier.padding(8.dp))
         }
-    }
-}
-
-@Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier
-    )
-}
-
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    PlateWatchTheme {
-        Greeting("Android")
     }
 }
