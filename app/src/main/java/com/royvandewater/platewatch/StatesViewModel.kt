@@ -8,11 +8,12 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.asLiveData
 import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.channels.trySendBlocking
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
@@ -28,11 +29,11 @@ data class StatesUiModel(
 
 class StatesViewModel(private val dataStore: DataStore<Preferences>): ViewModel(){
     private val undoHistory: ArrayList<Preferences> = ArrayList()
-
     private val nonViewedStatesFlow: Flow<List<String>> = getNonViewedStatesFlow()
     private val viewedStatesFlow: Flow<List<String>> = getViewedStatesFlow()
     private val hasUndoHistoryFlow: Flow<Boolean> = getUndoHistoryFlow()
 
+    private var updateHasUndoHistory: UndoCallback? = null
 
     private val statesUiModelFlow = combine(nonViewedStatesFlow, viewedStatesFlow, hasUndoHistoryFlow) { nonViewedStates, viewedStates, hasUndoHistory ->
        return@combine StatesUiModel(nonViewedStates, viewedStates, hasUndoHistory)
@@ -80,7 +81,9 @@ class StatesViewModel(private val dataStore: DataStore<Preferences>): ViewModel(
     fun undo() {
         viewModelScope.launch {
             dataStore.updateData {
-                undoHistory.removeLast()
+                val preferences = undoHistory.removeLast()
+                updateHasUndoHistory?.handleMessage(undoHistory.isNotEmpty())
+                return@updateData preferences
             }
         }
     }
@@ -88,6 +91,7 @@ class StatesViewModel(private val dataStore: DataStore<Preferences>): ViewModel(
     private suspend fun addStateToUndoHistory() {
         val settings = dataStore.data.first()
         undoHistory.add(settings)
+        updateHasUndoHistory?.handleMessage(true)
     }
 
     private fun getNonViewedStatesFlow(): Flow<List<String>> {
@@ -125,13 +129,22 @@ class StatesViewModel(private val dataStore: DataStore<Preferences>): ViewModel(
     }
 
     private fun getUndoHistoryFlow(): Flow<Boolean> {
-        return flow<Boolean> {
-            while(true) {
-                emit(undoHistory.isNotEmpty())
-                delay(10)
+        return callbackFlow {
+            val callback = object : UndoCallback {
+                override fun handleMessage(hasUndoHistory: Boolean) {
+                    trySendBlocking(hasUndoHistory)
+                }
             }
+
+            updateHasUndoHistory = callback
+
+            awaitClose { updateHasUndoHistory = null }
         }
     }
+}
+
+interface UndoCallback {
+    fun handleMessage(hasUndoHistory: Boolean)
 }
 
 class StatesViewModelFactory(private val dataStore: DataStore<Preferences>): ViewModelProvider.Factory {
