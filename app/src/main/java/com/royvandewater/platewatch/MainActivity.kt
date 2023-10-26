@@ -25,10 +25,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults.topAppBarColors
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.MutableState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
@@ -37,15 +33,18 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.preferencesDataStore
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.royvandewater.platewatch.ui.theme.PlateWatchTheme
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.runBlocking
+
 
 //const val TAG: String = "MainActivity"
 val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "states")
 
 class MainActivity : ComponentActivity() {
     private lateinit var viewModel: StatesViewModel
-    @OptIn(ExperimentalMaterial3Api::class)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -54,49 +53,58 @@ class MainActivity : ComponentActivity() {
             StatesViewModelFactory(dataStore)
         )[StatesViewModel::class.java]
 
-        val nonViewedStates: MutableState<List<String>> = mutableStateOf(listOf())
-        val viewedStates: MutableState<List<String>> = mutableStateOf(listOf())
-        val hasUndo: MutableState<Boolean> = mutableStateOf(false)
-
-        viewModel.statesUiModel.observe(this) { statesUiModel ->
-            nonViewedStates.value = statesUiModel.nonViewed
-            viewedStates.value = statesUiModel.viewed
-            hasUndo.value = statesUiModel.hasUndoHistory
-        }
-
         setContent {
             PlateWatchTheme {
-                Scaffold(
-                    topBar = {
-                        StatesTopBar(
-                            hasUndoState = hasUndo,
-                            onUndo  = { viewModel.undo() },
-                            onReset = { viewModel.resetStates() }
-                        )
-                    }
-                ) {innerPadding ->
-                    // A surface container using the 'background' color from the theme
-                    Surface(
-                        modifier = Modifier.fillMaxSize(),
-                        color = MaterialTheme.colorScheme.background
-                    ) {
-                        StatesList(innerPadding, nonViewedStates, viewedStates, onStateViewed = { state ->
-                            viewModel.setStateViewed(state)
-                        }, onStateUnViewed = { state ->
-                            viewModel.setStateUnViewed(state)
-                        })
-                    }
-                }
+                App(
+                    uiModelState = viewModel.uiModelState,
+                    onUndo = { viewModel.undo() },
+                    onReset = { viewModel.resetStates() },
+                    onStateViewed = { state -> viewModel.setStateViewed(state) },
+                    onStateUnViewed = { state -> viewModel.setStateUnViewed(state) }
+                )
             }
+        }
+    }
+}
+
+@Composable
+fun App(
+    uiModelState: StateFlow<UiModel>,
+    onUndo: () -> Unit,
+    onReset: () -> Unit,
+    onStateViewed: (state: String) -> Unit,
+    onStateUnViewed: (state: String) -> Unit
+) {
+    val uiModel = uiModelState.collectAsStateWithLifecycle()
+
+    Scaffold(
+        topBar = {
+            StatesTopBar(
+                hasUndo = uiModel.value.hasUndoHistory,
+                onUndo  = onUndo,
+                onReset = onReset,
+            )
+        }
+    ) {innerPadding ->
+        // A surface container using the 'background' color from the theme
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.background
+        ) {
+            StatesList(
+                innerPadding = innerPadding,
+                nonViewedStates = uiModel.value.nonViewed,
+                viewedStates = uiModel.value.viewed,
+                onStateViewed = onStateViewed,
+                onStateUnViewed = onStateUnViewed,
+            )
         }
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun StatesTopBar(hasUndoState: MutableState<Boolean>, onUndo: () -> Unit, onReset: () -> Unit ) {
-    val hasUndo by rememberSaveable { hasUndoState }
-
+fun StatesTopBar(hasUndo: Boolean, onUndo: () -> Unit, onReset: () -> Unit ) {
     TopAppBar(
         colors = topAppBarColors(
             containerColor = MaterialTheme.colorScheme.primaryContainer,
@@ -121,10 +129,13 @@ fun StatesTopBar(hasUndoState: MutableState<Boolean>, onUndo: () -> Unit, onRese
 }
 
 @Composable
-fun StatesList(innerPadding: PaddingValues, nonViewedStatesList: MutableState<List<String>>, viewedStatesList: MutableState<List<String>>, onStateViewed: (state: String) -> Unit, onStateUnViewed: (state: String) -> Unit) {
-    val nonViewedStates by rememberSaveable { nonViewedStatesList }
-    val viewedStates by rememberSaveable { viewedStatesList }
-
+fun StatesList(
+    innerPadding: PaddingValues,
+    nonViewedStates: List<String>,
+    viewedStates: List<String>,
+    onStateViewed: (state: String) -> Unit,
+    onStateUnViewed: (state: String) -> Unit
+) {
     LazyColumn(Modifier.padding(innerPadding)) {
         items(items = nonViewedStates) { state ->
             StateRow(state = state, onClick = {
