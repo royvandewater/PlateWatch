@@ -35,7 +35,6 @@ import androidx.datastore.preferences.preferencesDataStore
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.royvandewater.platewatch.ui.theme.PlateWatchTheme
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.runBlocking
 
 
@@ -54,38 +53,28 @@ class MainActivity : ComponentActivity() {
         )[StatesViewModel::class.java]
 
         setContent {
-            PlateWatchTheme {
-                App(
-                    uiModelState = viewModel.uiModelState,
-                    onUndo = { viewModel.undo() },
-                    onReset = { viewModel.resetStates() },
-                    onStateViewed = { state -> viewModel.setStateViewed(state) },
-                    onStateUnViewed = { state -> viewModel.setStateUnViewed(state) }
-                )
-            }
+            PlateWatchTheme { App(viewModel) }
         }
     }
 }
 
 @Composable
 fun App(
-    uiModelState: StateFlow<UiModel>,
-    onUndo: () -> Unit,
-    onReset: () -> Unit,
-    onStateViewed: (state: String) -> Unit,
-    onStateUnViewed: (state: String) -> Unit
+    viewModel: StatesViewModel,
 ) {
-    val uiModel = uiModelState.collectAsStateWithLifecycle()
+    val hasUndo = viewModel.hasUndoHistoryFlow.collectAsStateWithLifecycle()
+    val nonViewedStates = viewModel.nonViewedStatesFlow.collectAsStateWithLifecycle()
+    val viewedStates = viewModel.viewedStatesFlow.collectAsStateWithLifecycle()
 
     Scaffold(
         topBar = {
             StatesTopBar(
-                hasUndo = uiModel.value.hasUndoHistory,
-                onUndo  = onUndo,
-                onReset = onReset,
+                hasUndo = hasUndo.value,
+                onUndo  = { viewModel.undo() },
+                onReset = { viewModel.resetStates() },
             )
         }
-    ) {innerPadding ->
+    ) { innerPadding ->
         // A surface container using the 'background' color from the theme
         Surface(
             modifier = Modifier.fillMaxSize(),
@@ -93,10 +82,10 @@ fun App(
         ) {
             StatesList(
                 innerPadding = innerPadding,
-                nonViewedStates = uiModel.value.nonViewed,
-                viewedStates = uiModel.value.viewed,
-                onStateViewed = onStateViewed,
-                onStateUnViewed = onStateUnViewed,
+                nonViewedStates = nonViewedStates.value,
+                viewedStates = viewedStates.value,
+                onStateViewed = { state -> viewModel.setStateViewed(state) },
+                onStateUnViewed = { state -> viewModel.setStateUnViewed(state) },
             )
         }
     }
